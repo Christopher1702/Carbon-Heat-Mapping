@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { Pool } = require("pg");
+const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,11 +9,15 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json()); // Parse JSON bodies
 
-// Postgres connection pool (Supabase)
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // required for Supabase
-});
+// Supabase client (HTTP, NOT raw Postgres)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error("Supabase env vars are missing. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.");
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Store last received measurement in memory
 let lastMeasurement = null;
@@ -54,30 +58,31 @@ app.post("/api/test", async (req, res) => {
 
   console.log("New measurement received:", lastMeasurement);
 
-  // Insert into Supabase DB
+  // Insert into Supabase via HTTP API
   try {
-    const query = `
-      insert into readings (device_id, timestamp_ms, co2_ppm, received_at)
-      values ($1, $2, $3, $4)
-      returning id;
-    `;
-    const params = [
-      device_id,
-      timestamp_ms,
-      co2_ppm,
-      new Date()
-    ];
+    const { error } = await supabase
+      .from("readings")
+      .insert({
+        device_id,
+        timestamp_ms,
+        co2_ppm
+        // received_at will default to NOW() in DB if you prefer
+      });
 
-    const result = await pool.query(query, params);
-    const dbId = result.rows[0].id;
+    if (error) {
+      console.error("Supabase insert error:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Stored in RAM but failed to write to DB"
+      });
+    }
 
     res.status(201).json({
       status: "ok",
-      saved: lastMeasurement,
-      db_id: dbId
+      saved: lastMeasurement
     });
   } catch (err) {
-    console.error("Error inserting into database:", err);
+    console.error("Unexpected error inserting into Supabase:", err);
     res.status(500).json({
       status: "error",
       message: "Stored in RAM but failed to write to DB"
