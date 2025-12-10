@@ -14,7 +14,9 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error("Supabase env vars are missing. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.");
+  console.error(
+    "Supabase env vars are missing. Set SUPABASE_URL and SUPABASE_SERVICE_KEY."
+  );
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -37,21 +39,19 @@ app.get("/api/test", (req, res) => {
 
 // Receive POSTed sensor data
 app.post("/api/test", async (req, res) => {
-  const { device_id, timestamp_ms, co2_ppm } = req.body;
+  const { device_id, co2_ppm } = req.body;
 
   // Basic validation
   if (
     typeof device_id !== "string" ||
-    typeof timestamp_ms !== "number" ||
     typeof co2_ppm !== "number"
   ) {
     return res.status(400).json({ error: "Invalid payload format" });
   }
 
-  // Update in-memory storage
+  // Update in-memory storage (backend timestamp only)
   lastMeasurement = {
     device_id,
-    timestamp_ms,
     co2_ppm,
     received_at: new Date().toISOString()
   };
@@ -64,9 +64,8 @@ app.post("/api/test", async (req, res) => {
       .from("readings")
       .insert({
         device_id,
-        timestamp_ms,
         co2_ppm
-        // received_at will default to NOW() in DB if you prefer
+        // received_at is generated automatically by DB default
       });
 
     if (error) {
