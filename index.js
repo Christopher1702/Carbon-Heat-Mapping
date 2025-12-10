@@ -9,19 +9,17 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json()); // Parse JSON bodies
 
-// Supabase client (HTTP, NOT raw Postgres)
+// Supabase client (HTTP API)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error(
-    "Supabase env vars are missing. Set SUPABASE_URL and SUPABASE_SERVICE_KEY."
-  );
+  console.error("Supabase env vars are missing. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.");
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Store last received measurement in memory
+// Store last measurement in memory
 let lastMeasurement = null;
 
 // Root route
@@ -29,8 +27,8 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Carbon backend running" });
 });
 
-// View last measurement
-app.get("/api/test", (req, res) => {
+// View last measurement (optional)
+app.get("/data", (req, res) => {
   if (!lastMeasurement) {
     return res.status(404).json({ error: "No data received yet" });
   }
@@ -38,18 +36,16 @@ app.get("/api/test", (req, res) => {
 });
 
 // Receive POSTed sensor data
-app.post("/api/test", async (req, res) => {
+app.post("/data", async (req, res) => {
+
   const { device_id, co2_ppm } = req.body;
 
   // Basic validation
-  if (
-    typeof device_id !== "string" ||
-    typeof co2_ppm !== "number"
-  ) {
+  if (typeof device_id !== "string" || typeof co2_ppm !== "number") {
     return res.status(400).json({ error: "Invalid payload format" });
   }
 
-  // Update in-memory storage (backend timestamp only)
+  // Update in-memory storage
   lastMeasurement = {
     device_id,
     co2_ppm,
@@ -58,14 +54,13 @@ app.post("/api/test", async (req, res) => {
 
   console.log("New measurement received:", lastMeasurement);
 
-  // Insert into Supabase via HTTP API
+  // Insert into Supabase
   try {
     const { error } = await supabase
       .from("readings")
       .insert({
         device_id,
         co2_ppm
-        // received_at is generated automatically by DB default
       });
 
     if (error) {
@@ -80,6 +75,7 @@ app.post("/api/test", async (req, res) => {
       status: "ok",
       saved: lastMeasurement
     });
+
   } catch (err) {
     console.error("Unexpected error inserting into Supabase:", err);
     res.status(500).json({
