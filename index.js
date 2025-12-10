@@ -43,12 +43,12 @@ const deviceCoords = {
   "Victoria Dr": { lat: 49.2490, lng: -123.0650 }
 };
 
-// Root route
+// Root route – health check
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Carbon backend running" });
 });
 
-// View last measurement (optional)
+// View last measurement
 app.get("/data", (req, res) => {
   if (!lastMeasurement) {
     return res.status(404).json({ error: "No data received yet" });
@@ -56,7 +56,7 @@ app.get("/data", (req, res) => {
   res.json(lastMeasurement);
 });
 
-// Receive POSTed sensor data
+// Receive POSTed sensor data from ESPs
 app.post("/data", async (req, res) => {
   const { device_id, co2_ppm } = req.body;
 
@@ -79,6 +79,7 @@ app.post("/data", async (req, res) => {
     const { error } = await supabase.from("readings").insert({
       device_id,
       co2_ppm
+      // received_at is handled by DB default
     });
 
     if (error) {
