@@ -1,30 +1,41 @@
+/*
+  8. Express is a Node.js web framework used to create HTTP servers.
+  9. Imports the CORS middleware allows your server to accept requests from different origins
+  10. Imports the Supabase client factory function.
+  11. Creates an Express application instance. -> app object
+  12. Port assigned by the hosting platform -> Render -> 3000 is fall back
+*/
 const express = require("express");
 const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
-
 const app = express();
 const PORT = process.env.PORT || 3000;
+/*--------------------------------------------------------------------------------------------*/
 
-// Middleware
+/*
+  21. Registers the CORS middleware globally wihtin app.
+  22. Registers Express’s built-in JSON body parser
+  23. Reads the Supabase project URL from Render environment variables
+  24. Reads the SERVICEKEY from Render environment variables
+*/
 app.use(cors());
-app.use(express.json()); // Parse JSON bodies
-
-// Supabase client (HTTP API)
+app.use(express.json());
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
-
 if (!supabaseUrl || !supabaseServiceKey) {
   console.error(
     "Supabase env vars are missing. Set SUPABASE_URL and SUPABASE_SERVICE_KEY."
   );
 }
+/*--------------------------------------------------------------------------------------------*/
 
+/*
+  37. Entry point for all reads/writes to your Supabase tables
+  22. Registers Express’s built-in JSON body parser
+  23. Static lookup table (JavaScript object) mapping device/location IDs
+*/
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-// Store last measurement in memory
 let lastMeasurement = null;
-
-// Approximate coordinates for each device_id (street)
 const deviceCoords = {
   "Granville St": { lat: 49.2827, lng: -123.1187 },
   "Main St": { lat: 49.2734, lng: -123.1000 },
@@ -42,6 +53,7 @@ const deviceCoords = {
   "Cambie St": { lat: 49.2660, lng: -123.1150 },
   "Victoria Dr": { lat: 49.2490, lng: -123.0650 }
 };
+/*--------------------------------------------------------------------------------------------*/
 
 // Root route – health check
 app.get("/", (req, res) => {
@@ -144,3 +156,4 @@ app.get("/readings", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
+
