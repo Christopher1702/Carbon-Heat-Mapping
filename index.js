@@ -1,9 +1,9 @@
 /*
   DEMO Carbon backend (Express + Supabase)
   - Matches firmware payload:
-    { device_id, co2_ppm, asset_type, asset_name, co2_emission_kg_per_hr }
-  - Removes old Vancouver street coordinate mapping (deviceCoords)
-  - Keeps simple demo-grade logic
+    { asset_name, lat, lng, co2_ppm }
+  - Simple validation
+  - Stores readings in Supabase
 */
 
 const express = require("express");
@@ -55,59 +55,42 @@ app.get("/data", (req, res) => {
   POST /data
   Firmware sends:
     {
-      "device_id": "university_0",
-      "co2_ppm": 1200,
-      "asset_type": "university",
       "asset_name": "Simon Fraser University",
-      "co2_emission_kg_per_hr": 295.4
+      "lat": 49.2781,
+      "lng": -122.9199,
+      "co2_ppm": 1375
     }
 */
 app.post("/data", async (req, res) => {
-  const {
-    device_id,
-    co2_ppm,
-    asset_type,
-    asset_name,
-    co2_emission_kg_per_hr
-  } = req.body;
+  const { asset_name, lat, lng, co2_ppm } = req.body;
 
   // Validation: match firmware schema exactly
   const valid =
-    typeof device_id === "string" &&
-    device_id.trim().length > 0 &&
-    typeof co2_ppm === "number" &&
-    typeof asset_type === "string" &&
-    asset_type.trim().length > 0 &&
     typeof asset_name === "string" &&
     asset_name.trim().length > 0 &&
-    typeof co2_emission_kg_per_hr === "number";
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    typeof co2_ppm === "number";
 
   if (!valid) {
     return res.status(400).json({
       error:
-        "Invalid payload. Required: device_id (string), co2_ppm (number), asset_type (string), asset_name (string), co2_emission_kg_per_hr (number)"
+        "Invalid payload. Required: asset_name (string), lat (number), lng (number), co2_ppm (number)"
     });
   }
 
   // In-memory record for quick /data view
-  lastMeasurement = {
-    device_id,
-    co2_ppm,
-    asset_type,
-    asset_name,
-    co2_emission_kg_per_hr
-  };
+  lastMeasurement = { asset_name, lat, lng, co2_ppm };
 
   console.log("New measurement received:", lastMeasurement);
 
   // Insert into Supabase
   try {
     const { error } = await supabase.from("readings").insert({
-      device_id,
-      co2_ppm,
-      asset_type,
       asset_name,
-      co2_emission_kg_per_hr
+      lat,
+      lng,
+      co2_ppm
     });
 
     if (error) {
@@ -135,7 +118,7 @@ app.post("/data", async (req, res) => {
 /* -------------------------------------------------- */
 /*
   GET /readings
-  Returns latest readings (no coords, no dropping).
+  Returns latest readings (ready for the map).
 */
 app.get("/readings", async (req, res) => {
   try {
@@ -150,17 +133,12 @@ app.get("/readings", async (req, res) => {
       return res.status(500).json({ error: "Failed to fetch readings" });
     }
 
-    // Ensure numeric parsing
     const out = (data || []).map((row) => ({
       id: row.id,
-      device_id: row.device_id,
-      co2_ppm: row.co2_ppm !== null && row.co2_ppm !== undefined ? Number(row.co2_ppm) : null,
-      asset_type: row.asset_type,
       asset_name: row.asset_name,
-      co2_emission_kg_per_hr:
-        row.co2_emission_kg_per_hr !== null && row.co2_emission_kg_per_hr !== undefined
-          ? Number(row.co2_emission_kg_per_hr)
-          : null
+      lat: row.lat !== null && row.lat !== undefined ? Number(row.lat) : null,
+      lng: row.lng !== null && row.lng !== undefined ? Number(row.lng) : null,
+      co2_ppm: row.co2_ppm !== null && row.co2_ppm !== undefined ? Number(row.co2_ppm) : null
     }));
 
     return res.json(out);
